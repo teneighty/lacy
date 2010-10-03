@@ -7,4 +7,4 @@ lacy-pages:
 	@rm _output -rf
 
 clean:
-	rm -rf ../*.html
+	rm -rf ../*.html ../styles
