@@ -1,0 +1,10 @@
+
+#container {
+    margin: 10px auto;
+    width: 800px;
+}
+
+#content {
+    border: #ccc solid 1px;
+}
+
