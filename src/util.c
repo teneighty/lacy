@@ -8,9 +8,7 @@ static void str_resize(struct ut_str *u, long ns);
 void 
 str_resize(struct ut_str *u, long ns)
 {
-    // while (u->s == NULL || u->len + ns >= u->size) {
     while (u->len + ns >= u->size) {
-        printf("Realloc to %ld + %ld >= %ld\n", u->len, ns, u->size);
         u->size += u->def_size;
         u->s = realloc(u->s, u->size);
     }
