@@ -22,7 +22,7 @@ enum TOKENS { IDENT = 0, MEMBER,
               EXP_START, EXP_END, 
               SH_START, SH_BLOCK, SH_END, 
               VAR_START, VAR_END, 
-              FOR, IN, DO, DONE };
+              FOR, IN, DO, DONE, INCLUDE };
 
 struct appconf {
     struct ut_str shell;
@@ -73,15 +73,18 @@ static void env_set(struct lacy_env *env, char *ident, char *value);
 static void tree_push(int tok, char *buffer);
 
 static void build_tree(struct lacy_env *env);
-static void do_build_tree(char *s, struct lacy_env *env);
+static char *do_build_tree(char *s, struct lacy_env *env);
 static char *parse_var(char *s, struct page *p, struct lacy_env *env);
 static char *parse_expression(char *s, struct lacy_env *env);
+static char *parse_include(char *s, struct lacy_env *env);
 static char *parse_foreach(char *s, struct lacy_env *env);
 static char *parse_sh_exp(char *s, struct lacy_env *env);
 
 
 static void write_tree(FILE *out, struct lacy_env *env);
 static void do_write_tree(FILE *out, struct lacy_env *env, struct tree_node *top);
+
+static struct tree_node * write_include(FILE *out, struct tree_node *t, struct lacy_env *env);
 static struct tree_node * write_var(FILE *out, struct tree_node *t, struct lacy_env *env);
 static void write_sh_block(FILE *out, struct tree_node *t, struct lacy_env *env);
 static struct tree_node * write_for(FILE *out, struct tree_node *t, struct lacy_env *env);
@@ -322,6 +325,8 @@ next_token(char **s)
         token = DO;
     else if (strcmp("done", curtok.s) == 0)
         token = DONE;
+    else if (strcmp("include", curtok.s) == 0) 
+        token = INCLUDE;
     else {
         token = IDENT;
     }
@@ -386,7 +391,7 @@ build_tree(struct lacy_env *env)
     do_build_tree(s, env);
 }
 
-void 
+char * 
 do_build_tree(char *s, struct lacy_env *env)
 {
     struct page *p = env_get_page(env);
@@ -472,6 +477,10 @@ parse_expression(char *s, struct lacy_env *env)
         case DONE:
             tree_push(DONE, NULL);
             break;
+        case INCLUDE:
+            tree_push(INCLUDE, NULL);
+            s = parse_include(s, env);
+            break;
         default:
             fatal("excepted for\n");
     }
@@ -485,6 +494,21 @@ parse_expression(char *s, struct lacy_env *env)
     return s;
 }
 
+char *
+parse_include(char *s, struct lacy_env *env)
+{
+    struct page *p;
+    int t = next_token(&s);
+    switch (t) {
+        case IDENT:
+            p = page_find(curtok.s);
+            do_build_tree(p->code, env);
+            break;
+        default:
+            fatal("excepted ident");
+    }
+    return s;
+}
 
 char *
 parse_foreach(char *s, struct lacy_env *env)
@@ -574,6 +598,10 @@ do_write_tree(FILE *out, struct lacy_env *env, struct tree_node *top)
         switch (t->token) {
         case BLOCK:
             fputs(t->buffer.s, out);
+            break;
+        case INCLUDE:
+            t = write_include(out, t, env);
+            break;
         case IDENT:
             t = write_var(out, t, env);
             break;
@@ -590,6 +618,20 @@ do_write_tree(FILE *out, struct lacy_env *env, struct tree_node *top)
         }
         t = t->next;
     }
+}
+
+struct tree_node * 
+write_include(FILE *out, struct tree_node *t, struct lacy_env *env)
+{
+    if (t->next != NULL && IDENT == t->next->token) {
+        t = t->next;
+        if (NULL != t) {
+            struct page *p = page_find(t->buffer.s);
+            t = write_member(out, t, p, env);
+        }
+        t = t->next;
+    }
+    return t;
 }
 
 struct tree_node * 
