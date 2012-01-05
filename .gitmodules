@@ -1,0 +1,5 @@
+[submodule "markdown"]
+	path = markdown
+	url = https://github.com/Orc/discount.git
+    ignore = untracked
+

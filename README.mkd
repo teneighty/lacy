@@ -1,7 +1,8 @@
 # lacy
 
-`lacy` is a static site generator written in c. It includes syntax to execute
-inline shell scripts.
+`lacy` is a static site generator written in c. It includes a simple template
+language and support for inline shell scripts. Pages can be written in
+markdown.
 
 # Usage 
 
@@ -9,14 +10,13 @@ inline shell scripts.
 
 # building/installing
 
-    cd src
+    # build
     make
+
+    #install
     cp lacy ~/bin
-    # or 
-    sudo cp lacy /usr/bin
 
 # TODO
 
-* config file
-* move source into single lacy.c
-* add markdown
+* add config file
+* find subdir bug in for loops

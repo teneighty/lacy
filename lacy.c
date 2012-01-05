@@ -9,8 +9,13 @@
 #include <sys/types.h>
 
 #include "config.h"
+#include "markdown.h"
 
 #define MAX_INHERIT 50
+
+#define PACKAGE_NAME "lacy"
+#define PACKAGE_VERSION "0.0.1"
+#define PACKAGE_URL "http://teneighty.github.com/lacy"
 
 #define env_get_page_top(env)  env->p_stack->stack[env->p_stack->size - 1]
 #define env_get_page(env)      env->p_stack->stack[env->p_stack->pos]
@@ -27,6 +32,7 @@ struct ut_str {
 };
 
 enum { NORM, REF, HEADER };
+enum { NONE, MARKDOWN };
 
 struct page_attr {
     struct ut_str name;
@@ -38,6 +44,7 @@ struct page {
     struct page *inherits;
     char *file_path;
     char *code;
+    int page_type;
 
     struct page_attr *attr_top;
 
@@ -81,14 +88,13 @@ struct lacy_env {
 
 /* function declarations */
 static int build_depth(char *file_path);
-static bool file_exists(char *s);
 static int copy_dir(char *src, char *dest);
 static int copy_file(char *src, char *dest);
+static bool file_exists(char *s);
 static bool flook_ahead(FILE *f, char *s, int n);
 static bool slook_ahead(char *f, char *s, int n);
 static int iswhitespace(char c);
 static int isnewline(char c);
-static void warn(const char *s, ...);
 static void fatal(const char *s, ...);
 static void setup();
 static void breakdown();
@@ -101,6 +107,7 @@ static void build_tree(struct lacy_env *env);
 static char *do_build_tree(char *s, struct lacy_env *env);
 static void parse_header(FILE *f, struct page *p);
 static struct page * parse_page(FILE *f, char *file_path);
+static void parse_filepath(const char *file_path, struct page *p);
 static void page_attr_free(struct page *p);
 static void page_add(struct page *np);
 static struct page * page_find(char *file_path);
@@ -306,7 +313,11 @@ parse_page(FILE *f, char *file_path)
     long len = 0;
     struct ut_str buffer;
 
+    /* markdown vars */
+
     struct page *p = malloc(sizeof(struct page));
+
+    parse_filepath(file_path, p);
 
     p->inherits = NULL;
     p->attr_top = NULL;
@@ -324,15 +335,44 @@ parse_page(FILE *f, char *file_path)
 
     p->code = malloc(sizeof(char) * buffer.size + 1);
     memset(p->code, '\0', buffer.size + 1);
-    strncpy(p->code, buffer.s, buffer.size);
+
+    if (MARKDOWN == p->page_type) {
+        Document *doc = mkd_string(buffer.s, buffer.size + 1, 0);
+	    if (NULL != doc && mkd_compile(doc, 0) ) {
+            char *html = NULL;
+            int szdoc = mkd_document(doc, &html);
+            strncpy(p->code, html, szdoc);
+            mkd_cleanup(doc);
+
+        }
+    } else {
+        strncpy(p->code, buffer.s, buffer.size);
+    }
     str_free(&buffer);
 
-    int l = strlen(file_path) + 1;
-    p->file_path = malloc(sizeof(char) * l);
-    memset(p->file_path, '\0', l);
-    strncpy(p->file_path, file_path, l - 1);
 
     return p;
+}
+
+void 
+parse_filepath(const char *file_path, struct page *p) {
+    int len;
+    char *start;
+
+    len = strlen(file_path) + 1;
+    if (NULL != (start = strstr(file_path, ".mkd"))) {
+        len = len - strlen(start) - 1;
+        p->file_path = malloc(sizeof(char) * (len + 6));
+        memset(p->file_path, '\0', len);
+        strncpy(p->file_path, file_path, len);
+        strncat(p->file_path, ".html", 5);
+        p->page_type = MARKDOWN;
+    } else {
+        p->page_type = NONE;
+        p->file_path = malloc(sizeof(char) * len);
+        memset(p->file_path, '\0', len);
+        strncpy(p->file_path, file_path, len - 1);
+    }
 }
 
 void
