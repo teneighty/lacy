@@ -9,13 +9,14 @@ inline shell scripts.
 
 # building/installing
 
-	./autogen.sh
-	./configure 
-	make
-	make install
+    cd src
+    make
+    cp lacy ~/bin
+    # or 
+    sudo cp lacy /usr/bin
 
 # TODO
 
 * config file
-* refactor lists to use something generic
-* find bugs
+* move source into single lacy.c
+* add markdown

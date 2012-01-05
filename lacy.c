@@ -1,12 +1,14 @@
+#include <dirent.h>
+#include <getopt.h>
+#include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <stdbool.h>
+#include <sys/types.h>
 
-#include "page.h"
-#include "util.h"
+#include "config.h"
 
 #define MAX_INHERIT 50
 
@@ -16,6 +18,34 @@
 #define env_has_next(env)      (env->p_stack->pos + 1 < env->p_stack->size)
 #define env_inc(env)           env->p_stack->pos++
 #define env_dec(env)           env->p_stack->pos--
+
+struct ut_str {
+    char *s;
+    long def_size;
+    long size;
+    long len;
+};
+
+enum { NORM, REF, HEADER };
+
+struct page_attr {
+    struct ut_str name;
+    struct ut_str value;
+    struct page_attr *next;
+};
+
+struct page {
+    struct page *inherits;
+    char *file_path;
+    char *code;
+
+    struct page_attr *attr_top;
+
+    struct page *next;
+    struct page *prev;
+};
+
+static struct page * page_list;
 
 enum TOKENS { IDENT = 0, MEMBER, 
               BLOCK,
@@ -49,118 +79,72 @@ struct lacy_env {
     struct page_attr *sym_tbl;
 };
 
-/* config */
-struct appconf conf;
-
-/* curr token */
-int token;
-struct ut_str curtok;
-
-/* top of stack */
-struct tree_node *tree_top;
-
-bool quiet_flag = 0;
-int verbosity = 1;
-
+/* function declarations */
+static int build_depth(char *file_path);
+static bool file_exists(char *s);
+static int copy_dir(char *src, char *dest);
+static int copy_file(char *src, char *dest);
+static bool flook_ahead(FILE *f, char *s, int n);
+static bool slook_ahead(char *f, char *s, int n);
+static int iswhitespace(char c);
+static int isnewline(char c);
+static void warn(const char *s, ...);
+static void fatal(const char *s, ...);
 static void setup();
 static void breakdown();
 static void render(struct page *p);
-
 static void env_build(struct page *p, struct lacy_env *env);
 static void env_free(struct lacy_env *env);
 static void env_set(struct lacy_env *env, char *ident, char *value);
-
 static void tree_push(int tok, char *buffer);
-
 static void build_tree(struct lacy_env *env);
 static char *do_build_tree(char *s, struct lacy_env *env);
+static void parse_header(FILE *f, struct page *p);
+static struct page * parse_page(FILE *f, char *file_path);
+static void page_attr_free(struct page *p);
+static void page_add(struct page *np);
+static struct page * page_find(char *file_path);
+static struct page * page_slurp(char *file_path);
+static struct page_attr * page_attr_lookup(struct page *e, char *s);
+static void page_list_init();
+static void page_list_free();
+static void page_free();
 static char *parse_var(char *s, struct page *p, struct lacy_env *env);
 static char *parse_expression(char *s, struct lacy_env *env);
 static char *parse_include(char *s, struct lacy_env *env);
 static char *parse_foreach(char *s, struct lacy_env *env);
 static char *parse_sh_exp(char *s, struct lacy_env *env);
-
-
+static void str_resize(struct ut_str *u, long ns);
+static void str_init(struct ut_str *u);
+static void str_append(struct ut_str *u, char c);
+static void str_append_str(struct ut_str *u, char *s);
+static void str_append_long(struct ut_str *u, long l);
+static void str_trim(struct ut_str *u);
+static int str_is_empty(struct ut_str *u);
+static void str_clear(struct ut_str *u);
+static void str_free(struct ut_str *u);
 static void write_tree(FILE *out, struct lacy_env *env);
 static void do_write_tree(FILE *out, struct lacy_env *env, struct tree_node *top);
-
 static struct tree_node * write_include(FILE *out, struct tree_node *t, struct lacy_env *env);
 static struct tree_node * write_var(FILE *out, struct tree_node *t, struct lacy_env *env);
 static void write_sh_block(FILE *out, struct tree_node *t, struct lacy_env *env);
 static struct tree_node * write_for(FILE *out, struct tree_node *t, struct lacy_env *env);
-
 static struct tree_node * write_member(FILE *out, struct tree_node *t, 
                                        struct page *p, struct lacy_env *env) ;
-static void write_depth(FILE *out, struct lacy_env *env);
-
 static int next_token(char **s);
-
 struct page_attr * env_attr_lookup(struct lacy_env *e, char *s);
-
 static void usage();
 static void version();
+static void write_depth(FILE *out, struct lacy_env *env);
 
-int
-main (int argc, char **argv)
-{
-    int c;
+/* variables */
+static struct appconf conf;
+static int token;
+static struct ut_str curtok;
+static struct tree_node *tree_top;
+static bool quiet_flag = 0;
+static int verbosity = 1;
 
-    while (true)
-    {
-        static struct option long_options[] =
-        {
-            {"verbose", no_argument, NULL, (int)'v'},
-            {"version", no_argument, NULL, (int)'V'},
-            {"quiet",   no_argument, NULL, (int)'q'},
-            {"help",    no_argument, NULL, (int)'h'},
-            {0, 0, 0, 0}
-        };
-
-        /* getopt_long stores the option index here. */
-        int option_index = 0;
-
-        c = getopt_long (argc, argv, "hqvV", long_options, &option_index);
-
-        /* Detect the end of the options. */
-        if (c == -1)
-            break;
-
-        switch (c) {
-        case 0:
-            case 'v':
-                verbosity += 1;
-                break;
-            case 'V':
-                version();
-                break;
-            case 'q':
-                quiet_flag = true;
-                break;
-            case 'h':
-                usage();
-                break;
-        default:
-            break;
-        }
-    }
-    if (quiet_flag) {
-        verbosity = 0;
-    }
-
-    setup();
-    page_list_init();
-
-    if (optind < argc) {
-        while (optind < argc) {
-            char *s = argv[optind++];
-            struct page *p = page_find(s);
-            render(p);
-        }
-    }
-    page_list_free();
-
-    return 0;
-}
 
 void
 setup()
@@ -257,6 +241,237 @@ env_set(struct lacy_env *env, char *ident, char *value)
         str_clear(&(e->value));
         str_append_str(&(e->value), value);
     }
+}
+
+void
+page_add(struct page *np)
+{
+    struct page *p;
+    if (NULL == page_list) {
+        page_list = np;
+        np->next = NULL;
+        np->prev = NULL;
+        return;
+    }
+    p = page_list;
+    while (NULL != p->next) 
+        p = p->next;
+
+    p->next = np;
+    np->prev = p;
+}
+
+struct page *
+page_find(char *file_path)
+{
+    struct page *p = page_list;
+    while (NULL != p) {
+        if (0 == strcmp(p->file_path, file_path))
+            return p;
+
+        p = p->next;
+    }
+    p = page_slurp(file_path);
+    page_add(p);
+
+    return p;
+}
+
+struct page * 
+page_slurp(char *file_path)
+{
+    struct page *p = NULL;
+
+    FILE *f = fopen(file_path, "r");
+
+    if (NULL == f) {
+        fatal("Unable to open: %s\n", file_path);
+    }
+
+    p = parse_page(f, file_path); 
+    p->next = NULL;
+    p->prev = NULL;
+
+    if (0 != fclose(f)) {
+        fatal("Unabled to close: %s\n", file_path);
+    }
+    return p;
+}
+
+struct page *
+parse_page(FILE *f, char *file_path)
+{
+    char c;
+    long pos = 0;
+    long len = 0;
+    struct ut_str buffer;
+
+    struct page *p = malloc(sizeof(struct page));
+
+    p->inherits = NULL;
+    p->attr_top = NULL;
+    str_init(&buffer);
+
+    while ((c = fgetc(f)) != EOF) {
+        if ('-' == c && flook_ahead(f, "--", 2)) {
+            parse_header(f, p);
+        }
+        else {
+            str_append(&buffer, c);
+        }
+    } 
+    while (c != EOF);
+
+    p->code = malloc(sizeof(char) * buffer.size + 1);
+    memset(p->code, '\0', buffer.size + 1);
+    strncpy(p->code, buffer.s, buffer.size);
+    str_free(&buffer);
+
+    int l = strlen(file_path) + 1;
+    p->file_path = malloc(sizeof(char) * l);
+    memset(p->file_path, '\0', l);
+    strncpy(p->file_path, file_path, l - 1);
+
+    return p;
+}
+
+void
+parse_header(FILE *f, struct page *p) 
+{
+    char c;
+    struct ut_str val, var;
+    int state = NORM;
+    int whitespace = 0;
+
+    str_init(&val);
+    str_init(&var);
+
+    do {
+        c = fgetc(f);
+        if ('-' == c && flook_ahead(f, "--", 2)) {
+            str_free(&var);
+            str_free(&val);
+            return;
+        }
+        switch (c) {
+        case '\n':
+        case '\r':
+            if (!str_is_empty(&var)) {
+                str_trim(&var);
+                str_trim(&val);
+                if (0 == strcmp("inherits", var.s)) {
+                    p->inherits = page_find(val.s);
+                }
+                else {
+                    struct page_attr a;
+                    struct page_attr *ap = malloc(sizeof(struct page_attr));
+
+                    memcpy(ap, &a, sizeof(struct page_attr));
+
+                    ap->next = NULL;
+                    str_init(&ap->name);
+                    str_init(&ap->value);
+
+                    str_append_str(&ap->name, var.s);
+                    str_append_str(&ap->value, val.s);
+
+                    if (NULL == p->attr_top) {
+                        p->attr_top = ap;
+                    }
+                    else {
+                        struct page_attr *c = p->attr_top;
+                        while (c->next != NULL) 
+                            c = c->next;
+
+                        c->next = ap;
+                    }
+                }
+            }
+            str_clear(&var);
+            str_clear(&val);
+            state = NORM;
+            break;
+        case ':':
+            state = REF;
+            break;
+        default:
+            if (REF == state) {
+                str_append(&val, c);
+            }
+            else {
+                str_append(&var, c);
+            }
+        }
+    }
+    while (c != EOF);
+
+    str_free(&var);
+    str_free(&val);
+}
+
+void
+page_free(struct page* p)
+{
+    if (NULL == p)
+        return;
+
+    page_attr_free(p);
+
+    p->inherits = NULL;
+    p->next = NULL;
+    p->prev = NULL;
+    p->attr_top = NULL;
+
+    if (NULL != p->file_path)
+        free(p->file_path);
+    if (NULL != p->code)
+        free(p->code);
+
+    free(p);
+}
+
+void
+page_list_init() { }
+
+void
+page_list_free()
+{
+    struct page *tmp;
+    struct page *p = page_list;
+    while (NULL != p) {
+        tmp = p->next;
+        page_free(p);
+        p = tmp;
+    }
+    page_list = NULL;
+}
+
+void
+page_attr_free(struct page *p)
+{
+    struct page_attr *tmp;
+    struct page_attr *t = p->attr_top;
+
+    while (t != NULL) {
+        tmp = t->next;
+        str_free(&t->name);
+        str_free(&t->value);
+        free(t);
+        t = tmp;
+    }
+}
+
+struct page_attr * 
+page_attr_lookup(struct page *e, char *s)
+{
+    struct page_attr *t = e->attr_top;
+    while (t != NULL) {
+        if (0 == strcmp(t->name.s, s))
+            return t;
+
+        t = t->next;
+    }
+    return NULL;
 }
 
 void 
@@ -807,3 +1022,317 @@ version()
     exit(EXIT_SUCCESS);
 }
 
+
+void 
+str_resize(struct ut_str *u, long ns)
+{
+    while (u->len + ns >= u->size) {
+        u->size += u->def_size;
+        u->s = realloc(u->s, u->size);
+    }
+}
+
+void
+str_init(struct ut_str *u)
+{
+    u->len = 0;
+    u->size = BUFSIZ;
+    u->def_size = BUFSIZ;
+    u->s = malloc(sizeof(char) * BUFSIZ);
+    memset(u->s, '\0', BUFSIZ);
+}
+
+/* XXX: fix me */
+void
+str_append(struct ut_str *u, char c) 
+{
+    str_resize(u, 1);
+    u->s[u->len] = c;
+    u->len++;
+    u->s[u->len] = '\0';
+}
+
+/* XXX: fix me */
+void
+str_append_str(struct ut_str *u, char *s) 
+{
+    long l = strlen(s);
+    str_resize(u, l);
+    u->len += l;
+    strcat(u->s, s);
+    u->s[u->len] = '\0';
+}
+
+void 
+str_trim(struct ut_str *u)
+{
+    char *str = u->s;
+    char *s = str;
+    while (iswhitespace(*s) == 1 && *s != '\0') 
+        s++;
+
+    while (*s != '\0') {
+        *str = *s;
+        str++; s++;
+    }
+    *str = '\0';
+    str--;
+    while (iswhitespace(*str)) {
+        *str = '\0';
+        s--;
+    }
+}
+
+int 
+iswhitespace(char c)
+{
+    return c == ' ' || isnewline(c);
+}
+
+int
+isnewline(char c)
+{
+    return c == '\n' || c == '\r';
+}
+
+void
+str_append_long(struct ut_str *u, long l) 
+{
+    char buf[BUFSIZ];
+    snprintf(buf, BUFSIZ, "%ld", l);
+    str_append_str(u, buf);
+}
+
+int
+str_is_empty(struct ut_str *u)
+{
+    if (u->len <= 0)
+        return 1;
+
+    return 0;
+}
+
+void
+str_clear(struct ut_str *u)
+{
+    u->len = 0;
+    u->size = u->def_size;
+    u->s = realloc(u->s, u->size);
+    memset(u->s, '\0', u->size);
+}
+
+void
+str_free(struct ut_str *u)
+{
+    if (NULL != u->s) 
+        free(u->s);
+}
+
+bool
+file_exists(char *s)
+{
+    FILE *f = fopen(s, "r");
+    if (NULL == f) {
+        return false;
+    }
+    fclose(f);
+    return true;
+
+}
+
+int
+build_depth(char *file_path) 
+{
+    char *s;
+    int depth = 0;
+    struct ut_str buf;
+    str_init(&buf);
+
+    s = file_path;
+    while (*s != '\0') {
+        if ('/' == *s) {
+            mkdir(buf.s, 0777);
+            depth++;
+        }
+        str_append(&buf, *s);
+        s++;
+    }
+    str_free(&buf);
+
+    return depth;
+}
+
+int
+copy_dir(char *src, char *dest)
+{
+    DIR *d;
+    struct dirent *de; 
+    if (NULL == (d = opendir(src))) {
+        return 0;
+    }
+
+    while ((de = readdir(d)) != NULL) {
+        if (strcmp(de->d_name, ".") == 0 
+         || strcmp(de->d_name, "..") == 0)
+            continue;
+
+        struct ut_str u_s, u_d;
+        str_init(&u_d);
+        str_init(&u_s);
+
+        str_append_str(&u_d, dest);
+        str_append_str(&u_s, src);
+
+        str_append(&u_d, '/');
+        str_append(&u_s, '/');
+
+        str_append_str(&u_d, de->d_name);
+        str_append_str(&u_s, de->d_name);
+
+        if (verbosity > 1)
+            printf("Copying %s\n", u_s.s);
+        if (DT_DIR == de->d_type) {
+            mkdir(u_d.s, 0777);
+            copy_dir(u_s.s, u_d.s);
+        }
+        else {
+            copy_file(u_s.s, u_d.s);
+        }
+        str_free(&u_s);
+        str_free(&u_d);
+    }
+    closedir(d);
+}
+
+int
+copy_file(char *src, char *dest)
+{
+    char c;
+    FILE *s, *d;
+    if ((s = fopen(src, "r")) == NULL) 
+        return 0;
+
+    if ((d = fopen(dest, "w")) == NULL) 
+        return 0;
+
+    while (!feof(s)) {
+        c = fgetc(s);
+        fputc(c, d);
+    }
+
+    fclose(s);
+    fclose(d);
+}
+
+bool 
+flook_ahead(FILE *f, char *s, int len)
+{
+    int i;
+    char c;
+    long offset = 0;
+    for (i = 0; i < len; ++i) {
+        c = fgetc(f);
+        offset--;
+        if (c != s[i]) {
+            fseek(f, offset, SEEK_CUR);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool 
+slook_ahead(char *f, char *s, int len)
+{
+    int i;
+    char c;
+    for (i = 0; i < len; ++i) {
+        if (f[i] != s[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void
+warn(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+}
+
+void 
+fatal(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    exit(EXIT_FAILURE);
+}
+
+int
+main (int argc, char **argv)
+{
+    int c;
+
+    while (true)
+    {
+        static struct option long_options[] =
+        {
+            {"verbose", no_argument, NULL, (int)'v'},
+            {"version", no_argument, NULL, (int)'V'},
+            {"quiet",   no_argument, NULL, (int)'q'},
+            {"help",    no_argument, NULL, (int)'h'},
+            {0, 0, 0, 0}
+        };
+
+        /* getopt_long stores the option index here. */
+        int option_index = 0;
+
+        c = getopt_long (argc, argv, "hqvV", long_options, &option_index);
+
+        /* Detect the end of the options. */
+        if (c == -1)
+            break;
+
+        switch (c) {
+        case 0:
+            case 'v':
+                verbosity += 1;
+                break;
+            case 'V':
+                version();
+                break;
+            case 'q':
+                quiet_flag = true;
+                break;
+            case 'h':
+                usage();
+                break;
+        default:
+            break;
+        }
+    }
+    if (quiet_flag) {
+        verbosity = 0;
+    }
+
+    setup();
+    page_list_init();
+
+    if (optind < argc) {
+        while (optind < argc) {
+            char *s = argv[optind++];
+            struct page *p = page_find(s);
+            render(p);
+        }
+    }
+    page_list_free();
+
+    return 0;
+}
+
+/* vim:set ft=c sw=4 ts=4 et: */
