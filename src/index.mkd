@@ -9,12 +9,12 @@ wrapper around shell commands in order to produce html.  It uses the
 
 ## Example
 
-Setupt a working directory:
+Setup a working directory
 
     mkdir -p mysite/_templates
     cd mysite
 
-Create the base template under `_templates/base.html`:
+Create the base template under `_templates/base.html`
 
     <!doctype html>
     <html>
@@ -36,7 +36,7 @@ Add posts to your site
     =======
     " >> posts/$i.mkd; done
 
-Add a homepage to your site called in a file `index.mkd`:
+Add a homepage to your site called in a file `index.mkd`
 
     ---
         title: Home
