@@ -1,0 +1,65 @@
+---
+    title: Lacy Homepage
+    inherits: _templates/base.html
+
+---
+
+Lacy is a static site generator written in c. It is intented to be used as a
+wrapper around shell commands in order to produce html.  It uses the
+[discount][discount] markdown library.
+
+## Example
+    mkdir -p mysite/_templates mysite/_static
+    cd mysite
+
+Create the base template
+
+    echo '
+    <doctype! html>
+    <html>
+        <title><head>{{title}}</head></title>
+        <body>
+            {{content}}
+        </body>
+    </html>
+    ' > _templates/base.html
+
+Add a homepage to your site.
+
+    echo '
+    - - -
+        title: Home
+        inherits: _templates/base.html
+    - - -
+
+    Welcome Home!
+    =============
+
+    Write stuff here!
+    ' >> index.mkd
+
+Build and view your work
+
+    lacy *.mkd
+    cd _output
+    firefox index.html
+
+
+## Build/Install
+
+    git clone https://github.com/teneighty/lacy.git
+    cd lacy
+    make
+    make install
+
+If using the default install location, you will need to add `$HOME/local/bin` to
+your `PATH` environment variable.
+
+    export PATH=$PATH:$HOME/local/bin
+
+Lacy's default installation will be in `$HOME/local/bin`, so you need to add
+that to your path or change the install location.  Now you can edit the
+`PREFIX` variable in the Makefile if you want to change lacy's default install
+location.
+
+[discount]: http://www.github.com/Orc/discount
