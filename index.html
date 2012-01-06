@@ -30,55 +30,51 @@ wrapper around shell commands in order to produce html.  It uses the
 
 <h2>Example</h2>
 
-<pre><code>mkdir -p mysite/_templates mysite/_static
+<p>Setupt a working directory:</p>
+
+<pre><code>mkdir -p mysite/_templates
 cd mysite
 </code></pre>
 
-<p>Create the base template</p>
+<p>Create the base template under <code>_templates/base.html</code>:</p>
 
-<pre><code>echo '
-&lt;doctype! html&gt;
+<pre><code>&lt;!doctype html&gt;
 &lt;html&gt;
-    &lt;title&gt;&lt;head&gt;Lacy Homepage&lt;/head&gt;&lt;/title&gt;
+    &lt;title&gt;&lt;head&gt;{{title}}&lt;/head&gt;&lt;/title&gt;
     &lt;body&gt;
-        
+        {{content}}
     &lt;/body&gt;
 &lt;/html&gt;
-' &gt; _templates/base.html
 </code></pre>
 
 <p>Add posts to your site</p>
 
 <pre><code>mkdir -p posts
 for i in $(seq 1 10); do 
-    echo '
-        - - -
-            title: Post $i
-        - - -
+    echo "---
+    title: Post $i
+---
 
-        Post $i
-        =======
-    '
-done &gt;&gt; posts/$1.mkd
+Post $i
+=======
+" &gt;&gt; posts/$i.mkd; done
 </code></pre>
 
-<p>Add a homepage to your site.</p>
+<p>Add a homepage to your site called in a file <code>index.mkd</code>:</p>
 
-<pre><code>echo '
-- - -
+<pre><code>---
     title: Home
     inherits: _templates/base.html
-- - -
+---
 
 Welcome Home!
 =============
 
 &lt;ul&gt;
-{ % for i in [ $ ls -r posts/ $ ] do % }
-   &lt;li&gt;&lt;a href=""&gt;&lt;/a&gt;&lt;/li&gt; 
-{ % done % }
+{% for i in {$ ls -r posts/* $} do %}
+   &lt;li&gt;&lt;a href="{{i}}"&gt;{{i.title}}&lt;/a&gt;&lt;/li&gt; 
+{% done %}
 &lt;/ul&gt;
-' &gt;&gt; index.mkd
 </code></pre>
 
 <p>Build and view your work</p>

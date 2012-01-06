@@ -1,7 +1,6 @@
 ---
     title: Lacy Homepage
     inherits: _templates/base.html
-
 ---
 
 Lacy is a static site generator written in c. It is intented to be used as a
@@ -9,52 +8,49 @@ wrapper around shell commands in order to produce html.  It uses the
 [discount][discount] markdown library.
 
 ## Example
-    mkdir -p mysite/_templates mysite/_static
+
+Setupt a working directory:
+
+    mkdir -p mysite/_templates
     cd mysite
 
-Create the base template
+Create the base template under `_templates/base.html`:
 
-    echo '
-    <doctype! html>
+    <!doctype html>
     <html>
-        <title><head>{{title}}</head></title>
+        <title><head>\{{title}}</head></title>
         <body>
-            {{content}}
+            \{{content}}
         </body>
     </html>
-    ' > _templates/base.html
 
 Add posts to your site
     
     mkdir -p posts
     for i in $(seq 1 10); do 
-        echo '
-            - - -
-                title: Post $i
-            - - -
-            
-            Post $i
-            =======
-        '
-    done >> posts/$1.mkd
+        echo "---
+        title: Post $i
+    ---
+    
+    Post $i
+    =======
+    " >> posts/$i.mkd; done
 
-Add a homepage to your site.
+Add a homepage to your site called in a file `index.mkd`:
 
-    echo '
-    - - -
+    ---
         title: Home
         inherits: _templates/base.html
-    - - -
+    ---
 
     Welcome Home!
     =============
 
     <ul>
-    { % for i in [ $ ls -r posts/ $ ] do % }
-       <li><a href="{{i}}">{{i.title}}</a></li> 
-    { % done % }
+    \{% for i in \{$ ls -r posts/* $} do %}
+       <li><a href="\{{i}}">\{{i.title}}</a></li> 
+    \{% done %}
     </ul>
-    ' >> index.mkd
 
 Build and view your work
 
