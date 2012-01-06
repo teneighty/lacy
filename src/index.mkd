@@ -50,9 +50,9 @@ Add a homepage to your site.
     =============
 
     <ul>
-    {% for i in [$ ls -r posts/ $] do %}
+    { % for i in [ $ ls -r posts/ $ ] do % }
        <li><a href="{{i}}">{{i.title}}</a></li> 
-    {% done % }
+    { % done % }
     </ul>
     ' >> index.mkd
 

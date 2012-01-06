@@ -47,6 +47,21 @@ cd mysite
 ' &gt; _templates/base.html
 </code></pre>
 
+<p>Add posts to your site</p>
+
+<pre><code>mkdir -p posts
+for i in $(seq 1 10); do 
+    echo '
+        - - -
+            title: Post $i
+        - - -
+
+        Post $i
+        =======
+    '
+done &gt;&gt; posts/$1.mkd
+</code></pre>
+
 <p>Add a homepage to your site.</p>
 
 <pre><code>echo '
@@ -58,7 +73,11 @@ cd mysite
 Welcome Home!
 =============
 
-Write stuff here!
+&lt;ul&gt;
+{ % for i in [ $ ls -r posts/ $ ] do % }
+   &lt;li&gt;&lt;a href=""&gt;&lt;/a&gt;&lt;/li&gt; 
+{ % done % }
+&lt;/ul&gt;
 ' &gt;&gt; index.mkd
 </code></pre>
 
