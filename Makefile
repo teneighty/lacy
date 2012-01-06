@@ -1,12 +1,15 @@
 
+PREFIX = ${HOME}/local/
+
+EXE = lacy
 CFLAGS = -Lmarkdown -Imarkdown
 LDFLAGS = -Lmarkdown -lmarkdown
 SRC = lacy.c
 OBJ = ${SRC:.c=.o}
 
-all: lacy
+all: ${EXE}
 
-lacy: markdown/libmarkdown.a ${OBJ}
+${EXE}: markdown/libmarkdown.a ${OBJ}
 	${CC} -o $@ ${OBJ} ${LDFLAGS}
 
 # this rule should only be executed once
@@ -17,9 +20,18 @@ markdown/libmarkdown.a:
 
 clean: 
 	@echo cleaning
-	@rm -f lacy *.o 
+	@rm -f ${EXE} *.o 
 
 fullclean: clean
 	@cd markdown; make clean
 
-.PHONY: all clean fullclean
+install: all
+	@mkdir -p ${PREFIX}/bin
+	@cp -f ${EXE} ${PREFIX}/bin
+	@chmod 755 ${PREFIX}/bin/${EXE}
+
+uninstall:
+	@echo removing executable file from ${PREFIX}/bin
+	@rm -f ${PREFIX}/bin/dwm
+
+.PHONY: all clean fullclean install uninstall

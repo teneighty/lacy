@@ -14,7 +14,7 @@
 #define MAX_INHERIT 50
 
 #define PACKAGE_NAME "lacy"
-#define PACKAGE_VERSION "0.0.1"
+#define PACKAGE_VERSION "0.0.2"
 #define PACKAGE_URL "http://teneighty.github.com/lacy"
 
 #define env_get_page_top(env)  env->p_stack->stack[env->p_stack->size - 1]
