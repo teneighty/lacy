@@ -10,11 +10,10 @@ markdown.
 
 # building/installing
 
-    # build
     make
 
-    #install
-    cp lacy ~/bin
+    # First edit Makefile to change install location, and then
+    make install
 
 # TODO
 
