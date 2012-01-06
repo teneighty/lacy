@@ -97,14 +97,13 @@ static int iswhitespace(char c);
 static int isnewline(char c);
 static void fatal(const char *s, ...);
 static void setup();
-static void breakdown();
 static void render(struct page *p);
 static void env_build(struct page *p, struct lacy_env *env);
 static void env_free(struct lacy_env *env);
 static void env_set(struct lacy_env *env, char *ident, char *value);
 static void tree_push(int tok, char *buffer);
 static void build_tree(struct lacy_env *env);
-static char *do_build_tree(char *s, struct lacy_env *env);
+static void do_build_tree(char *s, struct lacy_env *env);
 static void parse_header(FILE *f, struct page *p);
 static struct page * parse_page(FILE *f, char *file_path);
 static void parse_filepath(const char *file_path, struct page *p);
@@ -125,7 +124,6 @@ static void str_resize(struct ut_str *u, long ns);
 static void str_init(struct ut_str *u);
 static void str_append(struct ut_str *u, char c);
 static void str_append_str(struct ut_str *u, char *s);
-static void str_append_long(struct ut_str *u, long l);
 static void str_trim(struct ut_str *u);
 static int str_is_empty(struct ut_str *u);
 static void str_clear(struct ut_str *u);
@@ -169,14 +167,6 @@ setup()
     if (file_exists(conf.output_dir.s)) {
         copy_dir(conf.static_dir.s, conf.output_dir.s);
     }
-}
-
-void
-breakdown()
-{
-    str_free(&conf.shell);
-    str_free(&conf.output_dir);
-    str_free(&conf.static_dir);
 }
 
 void
@@ -309,8 +299,7 @@ struct page *
 parse_page(FILE *f, char *file_path)
 {
     char c;
-    long pos = 0;
-    long len = 0;
+    int parsed_header = 0;
     struct ut_str buffer;
 
     /* markdown vars */
@@ -324,8 +313,9 @@ parse_page(FILE *f, char *file_path)
     str_init(&buffer);
 
     while ((c = fgetc(f)) != EOF) {
-        if ('-' == c && flook_ahead(f, "--", 2)) {
+        if (!parsed_header && '-' == c && flook_ahead(f, "--", 2)) {
             parse_header(f, p);
+            parsed_header = 1;
         }
         else {
             str_append(&buffer, c);
@@ -338,7 +328,7 @@ parse_page(FILE *f, char *file_path)
 
     if (MARKDOWN == p->page_type) {
         Document *doc = mkd_string(buffer.s, buffer.size + 1, 0);
-	    if (NULL != doc && mkd_compile(doc, 0) ) {
+        if (NULL != doc && mkd_compile(doc, 0) ) {
             char *html = NULL;
             int szdoc = mkd_document(doc, &html);
             strncpy(p->code, html, szdoc);
@@ -381,7 +371,6 @@ parse_header(FILE *f, struct page *p)
     char c;
     struct ut_str val, var;
     int state = NORM;
-    int whitespace = 0;
 
     str_init(&val);
     str_init(&var);
@@ -646,37 +635,66 @@ build_tree(struct lacy_env *env)
     do_build_tree(s, env);
 }
 
-char * 
+void
 do_build_tree(char *s, struct lacy_env *env)
 {
+    int escaped = 0;
     struct page *p = env_get_page(env);
     struct ut_str buffer;
     str_init(&buffer);
 
     while (*s != '\0') {
+        if (*s == '\\') {
+            escaped = 1;
+            s++;
+        }
         if (slook_ahead(s, "{{", 2)) {
-            s += 2;
-            tree_push(BLOCK, buffer.s);
-            str_clear(&buffer);
-            s = parse_var(s, p, env);
-            continue;
+            if (escaped) {
+                str_append(&buffer, *s);
+                escaped = 0;
+            } 
+            else {
+                s += 2;
+                tree_push(BLOCK, buffer.s);
+                str_clear(&buffer);
+                s = parse_var(s, p, env);
+                continue;
+            }
         }
         else if (slook_ahead(s, "{%", 2)) {
-            s += 2;
-            tree_push(BLOCK, buffer.s);
-            str_clear(&buffer);
-            s = parse_expression(s, env);
-            continue;
+            if (escaped) {
+                str_append(&buffer, *s);
+                escaped = 0;
+            } 
+            else {
+                s += 2;
+                tree_push(BLOCK, buffer.s);
+                str_clear(&buffer);
+                s = parse_expression(s, env);
+                continue;
+            }
         }
         else if (slook_ahead(s, "{$", 2)) {
-            s += 2;
-            tree_push(BLOCK, buffer.s);
-            str_clear(&buffer);
-            s = parse_sh_exp(s, env);
-            continue;
+            if (escaped) {
+                str_append(&buffer, *s);
+                escaped = 0;
+            } 
+            else {
+                s += 2;
+                tree_push(BLOCK, buffer.s);
+                str_clear(&buffer);
+                s = parse_sh_exp(s, env);
+                continue;
+            }
         }
         else {
-            str_append(&buffer, *s);
+            if (escaped) {
+                str_append(&buffer, '\\');
+                str_append(&buffer, *s);
+                escaped = 0;
+            } else {
+                str_append(&buffer, *s);
+            }
         }
         ++s;
     }
@@ -691,6 +709,11 @@ parse_var(char *s, struct page *p, struct lacy_env *env)
     str_init(&var);
 
     while (*s != '\0') {
+        if (iswhitespace(*s) == 1) {
+            ++s;
+            continue;
+        }
+
         if ('.' == *s) {
             tree_push(IDENT, var.s);
             tree_push(MEMBER, NULL);
@@ -1135,14 +1158,6 @@ isnewline(char c)
     return c == '\n' || c == '\r';
 }
 
-void
-str_append_long(struct ut_str *u, long l) 
-{
-    char buf[BUFSIZ];
-    snprintf(buf, BUFSIZ, "%ld", l);
-    str_append_str(u, buf);
-}
-
 int
 str_is_empty(struct ut_str *u)
 {
@@ -1242,6 +1257,7 @@ copy_dir(char *src, char *dest)
         str_free(&u_d);
     }
     closedir(d);
+    return 1;
 }
 
 int
@@ -1262,6 +1278,7 @@ copy_file(char *src, char *dest)
 
     fclose(s);
     fclose(d);
+    return 1;
 }
 
 bool 
@@ -1285,7 +1302,6 @@ bool
 slook_ahead(char *f, char *s, int len)
 {
     int i;
-    char c;
     for (i = 0; i < len; ++i) {
         if (f[i] != s[i]) {
             return false;

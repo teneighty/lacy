@@ -2,7 +2,7 @@
 PREFIX = ${HOME}/local/
 
 EXE = lacy
-CFLAGS = -Lmarkdown -Imarkdown
+CFLAGS = -Wall -Imarkdown
 LDFLAGS = -Lmarkdown -lmarkdown
 SRC = lacy.c
 OBJ = ${SRC:.c=.o}
