@@ -1,0 +1,62 @@
+
+body {
+    color: #393939;
+    font: 1.4em helvetica,arial,freesans,clean,sans-serif;
+}
+
+h1:first-child {
+    margin: 0 0 1em;
+}
+
+h1 {
+    border-bottom: 1px solid #CCCCCC;
+    font-size: 30px;
+    margin: 2em 0 1em;
+    padding: 0.5em 0;
+}
+
+h2 {
+    color: #333333;
+    font-size: 16px;
+    margin: 2em auto 1em;
+}
+
+pre {
+    background-clip: padding-box;
+    background-color: #FAFAFB;
+    border: 1px solid #CACACA;
+    border-radius: 3px 3px 3px 3px;
+    color: #393939;
+    font: 12px Monaco,"Courier New","DejaVu Sans Mono","Bitstream Vera Sans Mono",monospace;
+    margin: 0;
+    overflow: auto;
+    padding: 10px;
+}
+
+#container {
+    margin: 0 auto;
+    width: 700px;
+    font-size: 0.75em;
+}
+
+#content { }
+
+#footer {
+    color: #CCC;
+    padding: 10px;
+    border: #CCC solid 0;
+    border-width: 1px 0 0 0;
+}
+
+.left {
+    float: left;
+}
+
+.right {
+    float: right;
+}
+
+.clear {
+    clear: both;
+}ÿ
+ÿ
