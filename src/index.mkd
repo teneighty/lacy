@@ -24,6 +24,20 @@ Create the base template
     </html>
     ' > _templates/base.html
 
+Add posts to your site
+    
+    mkdir -p posts
+    for i in $(seq 1 10); do 
+        echo '
+            - - -
+                title: Post $i
+            - - -
+            
+            Post $i
+            =======
+        '
+    done >> posts/$1.mkd
+
 Add a homepage to your site.
 
     echo '
@@ -35,7 +49,11 @@ Add a homepage to your site.
     Welcome Home!
     =============
 
-    Write stuff here!
+    <ul>
+    {% for i in [$ ls -r posts/ $] do %}
+       <li><a href="{{i}}">{{i.title}}</a></li> 
+    {% done % }
+    </ul>
     ' >> index.mkd
 
 Build and view your work
