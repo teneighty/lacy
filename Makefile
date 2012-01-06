@@ -16,6 +16,7 @@ ${EXE}: markdown/libmarkdown.a ${OBJ}
 markdown/libmarkdown.a: 
 	@echo "Fetching and building discount"
 	@ git submodule init
+	@ git submodule update
 	@ cd markdown; ./configure.sh > /dev/null; make > /dev/null;
 
 clean: 
