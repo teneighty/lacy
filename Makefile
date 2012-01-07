@@ -2,10 +2,12 @@
 PREFIX = ${HOME}/local/
 
 EXE = lacy
-CFLAGS = -Wall -Imarkdown
-LDFLAGS = -Lmarkdown -lmarkdown
+CFLAGS = -g -Wall -Imarkdown 
+LDFLAGS = -g -Lmarkdown -lmarkdown
 SRC = lacy.c
 OBJ = ${SRC:.c=.o}
+
+SPLINTFLAGS = -Imarkdown +posixlib 
 
 all: ${EXE}
 
@@ -35,4 +37,7 @@ uninstall:
 	@echo removing executable file from ${PREFIX}/bin
 	@rm -f ${PREFIX}/bin/dwm
 
-.PHONY: all clean fullclean install uninstall
+splint:
+	splint ${SPLINTFLAGS} ${SRC}
+
+.PHONY: all clean fullclean install uninstall splint

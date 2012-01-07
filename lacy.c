@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <errno.h>
 #include <getopt.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -96,6 +97,7 @@ static bool slook_ahead(char *f, char *s, int n);
 static int iswhitespace(char c);
 static int isnewline(char c);
 static void fatal(const char *s, ...);
+static void warn(const char *fmt, ...);
 static void setup();
 static void render(struct page *p);
 static void env_build(struct page *p, struct lacy_env *env);
@@ -162,10 +164,17 @@ setup()
     str_append_str(&conf.output_dir, "_output");
     str_append_str(&conf.static_dir, "_static");
 
-    mkdir(conf.output_dir.s, 0777);
+    if (0 != mkdir(conf.output_dir.s, 0777)) {
+        if (EEXIST != errno) {
+            fatal("Unable to mkdir %s\n", conf.output_dir.s);
+        }
+    }
 
     if (file_exists(conf.output_dir.s)) {
-        copy_dir(conf.static_dir.s, conf.output_dir.s);
+        if (0 != copy_dir(conf.static_dir.s, conf.output_dir.s)) {
+            warn("Unable to copy %s to %s\n", 
+                    conf.static_dir.s, conf.output_dir.s);
+        }
     }
 }
 
@@ -1223,7 +1232,7 @@ copy_dir(char *src, char *dest)
     DIR *d;
     struct dirent *de; 
     if (NULL == (d = opendir(src))) {
-        return 0;
+        return -1;
     }
 
     while ((de = readdir(d)) != NULL) {
@@ -1257,7 +1266,7 @@ copy_dir(char *src, char *dest)
         str_free(&u_d);
     }
     closedir(d);
-    return 1;
+    return 0;
 }
 
 int
